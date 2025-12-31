@@ -1,4 +1,4 @@
-package poopy
+
 
 data_dir := Path.home() / '.poopy'
 data_file := data_dir / 'expenses.json'
