@@ -1,76 +1,95 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 )
 
 type Expense struct {
-	Date        string
-	Amount      float64
-	Description string
-	Category    string
+	Date        string  `json:"date"`
+	Amount      float64 `json:"amount"`
+	Description string  `json:"description"`
+	Category    string  `json:"category"`
 }
 
-func main() {
-	expenses := []Expense{}
+func saveExpenses(expenses []Expense, filename string) error {
+	data, err := json.MarshalIndent(expenses, "", "  ")
+	if err != nil {
+		return err
+	}
 
-	expenses = append(expenses, Expense{
-		Date:        "2025-01-15",
-		Amount:      49.99,
-		Description: "Groceries",
-		Category:    "food",
-	})
+	err = os.WriteFile(filename, data, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-	expenses = append(expenses, Expense{
-		Date:        "2025-01-16",
-		Amount:      25.50,
-		Description: "Gas",
-		Category:    "transport",
-	})
-
-	expenses = append(expenses, Expense{
-		Date:        "2025-12-31",
-		Amount:      30.22,
-		Description: "Meal",
-		Category:    "food",
-	})
-
-	expenses = append(expenses, Expense{
-		Date:        "2025-12-31",
-		Amount:      5.0,
-		Description: "Meal",
-		Category:    "food",
-	})
-
-	expenses = append(expenses, Expense{
-		Date:        "2026-01-01",
-		Amount:      122.0,
-		Description: "Shopping",
-		Category:    "shopping",
-	})
-
-	fmt.Println("========= FOOD EXPENSES ========")
-	for _, expense := range expenses {
-		if expense.Category == "food" {
-			fmt.Printf("%s, $%.2f - %s\n",
-				expense.Date,
-				expense.Amount,
-				expense.Description)
+func loadExpenses(filename string) ([]Expense, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Expense{}, nil
 		}
+		return nil, err
+	}
+	var expenses []Expense
+	err = json.Unmarshal(data, &expenses)
+	if err != nil {
+		return nil, err
+	}
+	return expenses, nil
+}
+
+func filterByCategory(expenses []Expense, category string) []Expense {
+	filteredExpenses := []Expense{}
+	for _, expense := range expenses {
+		if expense.Category == category {
+			filteredExpenses = append(filteredExpenses, expense)
+		}
+	}
+	return filteredExpenses
+}
+
+func calculateAverage(expenses []Expense) float64 {
+	if len(expenses) == 0 {
+		return 0.0
 	}
 
 	total := 0.0
 	for _, expense := range expenses {
 		total += expense.Amount
 	}
-	average := total / float64(len(expenses))
+	return total / float64(len(expenses))
+}
 
-	fmt.Println("\n======== EXPENSES ========")
-	for _, expense := range expenses {
-		fmt.Printf("%s, $%.2f - %s\n",
-			expense.Date,
-			expense.Amount,
-			expense.Description)
+func main() {
+	filename := "expenses.json"
+
+	expenses, err := loadExpenses(filename)
+	if err != nil {
+		fmt.Println("Error loading expenses:", err)
+		return
 	}
-	fmt.Printf("\nTotal spent: $%.2f\nAverage spent: $%.2f\n", total, average)
+	fmt.Printf("Loaded %d expenses\n", len(expenses))
+
+	newExpense := Expense{
+		Date:        "2026-01-01",
+		Amount:      100.00,
+		Description: "Groceries",
+		Category:    "food",
+	}
+	expenses = append(expenses, newExpense)
+
+	err = saveExpenses(expenses, filename)
+	if err != nil {
+		fmt.Println("Error saving expenses:", err)
+		return
+	}
+
+	fmt.Printf("Saved %d expenses\n", len(expenses))
+
+	average := calculateAverage(filterByCategory(expenses, "food"))
+	fmt.Printf("Average food expense: $%.2f\n", average)
 }
