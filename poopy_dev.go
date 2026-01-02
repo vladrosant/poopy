@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -70,7 +71,7 @@ func handleAdd() {
 
 	expenseDate := *date
 	if expenseDate == "" {
-		expenseDate = time.Now().Format("02/01/2006")
+		expenseDate = time.Now().Format("2006-01-02")
 	}
 
 	expense := Expense{
@@ -94,7 +95,7 @@ func handleAdd() {
 		return
 	}
 
-	fmt.Printf("✓ Added expense: %.2f on %s\n", amount, expenseDate)
+	fmt.Printf("✓ Added expense: $%.2f on %s\n", amount, expenseDate)
 	if *desc != "" {
 		fmt.Printf("	Description: %s\n", *desc)
 	}
@@ -103,8 +104,8 @@ func handleAdd() {
 func handleList() {
 	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
 
-	startDate := listCmd.String("s", "", "Start date (DD/MM/YYYY)")
-	endDate := listCmd.String("e", "", "End date (DD/MM/YYYY")
+	startDate := listCmd.String("s", "", "Start date (YYYY-MM-DD)")
+	endDate := listCmd.String("e", "", "End date (YYYY-MM-DD")
 	category := listCmd.String("c", "", "Filter by category")
 
 	listCmd.Parse(os.Args[2:])
@@ -140,20 +141,67 @@ func handleList() {
 	displayExpenses(expenses)
 }
 
-func filterByStartDate(expenses []Expense, date string) []Expense {
-	fmt.Println("Coming soon")
+func filterByStartDate(expenses []Expense, startDate string) []Expense {
+	filtered := []Expense{}
+
+	for _, expense := range expenses {
+		if expense.Date >= startDate {
+			filtered = append(filtered, expense)
+		}
+	}
+	return filtered
 }
 
-func filterByEndDate(expenses []Expense, date string) []Expense {
-	fmt.Println("Coming soon")
+func filterByEndDate(expenses []Expense, endDate string) []Expense {
+	filtered := []Expense{}
+
+	for _, expense := range expenses {
+		if expense.Date <= endDate {
+			filtered = append(filtered, expense)
+		}
+	}
+	return filtered
 }
 
 func filterByCategory(expenses []Expense, category string) []Expense {
-	fmt.Println("Coming soon")
+	filtered := []Expense{}
+
+	for _, expense := range expenses {
+		if expense.Category == category {
+			filtered = append(filtered, expense)
+		}
+	}
+
+	return filtered
 }
 
 func displayExpenses(expenses []Expense) {
-	fmt.Println("Coming soon")
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Printf("%-12s  %-10s  %-15s  %s\n", "Date", "Amount", "Category", "Description")
+	fmt.Println(strings.Repeat("=", 80))
+
+	total := 0.0
+	for _, expense := range expenses {
+		desc := expense.Description
+		if len(desc) > 40 {
+			desc = desc[:37] + "..." // Truncate long descriptions
+		}
+		if desc == "" {
+			desc = "-" // Show dash for empty descriptions
+		}
+
+		fmt.Printf("%-12s  $%-9.2f  %-15s  %s\n",
+			expense.Date,
+			expense.Amount,
+			expense.Category,
+			desc)
+
+		total += expense.Amount
+	}
+
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Printf("%-24s $%-9.2f\n", "TOTAL", total)
+	fmt.Println(strings.Repeat("=", 80) + "\n")
 }
 
 func handleSummary() {

@@ -4,5 +4,23 @@
     "amount": 100,
     "description": "Groceries",
     "category": "food"
+  },
+  {
+    "date": "2026-01-02",
+    "amount": 50,
+    "description": "",
+    "category": "general"
+  },
+  {
+    "date": "2026-01-02",
+    "amount": 50,
+    "description": "",
+    "category": "general"
+  },
+  {
+    "date": "2026-01-02",
+    "amount": 50,
+    "description": "",
+    "category": "general"
   }
 ]
