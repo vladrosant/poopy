@@ -184,10 +184,10 @@ func displayExpenses(expenses []Expense) {
 	for _, expense := range expenses {
 		desc := expense.Description
 		if len(desc) > 40 {
-			desc = desc[:37] + "..." // Truncate long descriptions
+			desc = desc[:37] + "..."
 		}
 		if desc == "" {
-			desc = "-" // Show dash for empty descriptions
+			desc = "-"
 		}
 
 		fmt.Printf("%-12s  $%-9.2f  %-15s  %s\n",
@@ -200,12 +200,71 @@ func displayExpenses(expenses []Expense) {
 	}
 
 	fmt.Println(strings.Repeat("=", 80))
-	fmt.Printf("%-24s $%-9.2f\n", "TOTAL", total)
+	fmt.Printf("%-13s $%-9.2f\n", "TOTAL", total)
 	fmt.Println(strings.Repeat("=", 80) + "\n")
 }
 
 func handleSummary() {
-	fmt.Println("Coming soon")
+	summaryCmd := flag.NewFlagSet("summary", flag.ExitOnError)
+
+	month := summaryCmd.Int("m", 0, "Month (1-12)")
+	year := summaryCmd.Int("y", 0, "Year (e.g., 2026)")
+
+	summaryCmd.Parse(os.Args[2:])
+
+	expenses, err := loadExpenses(dataFile)
+	if err != nil {
+		fmt.Println("Error loading expenses:", err)
+		return
+	}
+
+	if len(expenses) < 1 {
+		fmt.Println("No expenses to show")
+		return
+	}
+
+	if *year > 0 {
+		expenses = filterByYear(expenses, *year)
+	}
+
+	if *month > 0 {
+		expenses = filterByMonth(expenses, *year, *month)
+	}
+
+	if len(expenses) == 0 {
+		fmt.Println("No expenses to show")
+	}
+
+	displaySummary(expenses, *month, *year)
+}
+
+func filterByYear(expenses []Expense, year int) []Expense {
+	filtered := []Expense{}
+	yearStr := fmt.Sprintf("%d", year)
+
+	for _, expense := range expenses {
+		if len(expense.Date) >= 4 && expense.Date[:4] == yearStr {
+			filtered = append(filtered, expense)
+		}
+	}
+	return filtered
+}
+
+func filterByMonth(expenses []Expense, year, month int) []Expense {
+	filtered := []Expense{}
+	monthStr := fmt.Sprintf("%d-%02d", year, month)
+
+	for _, expense := range expenses {
+		if len(expense.Date) >= 7 && expense.Date[:7] == monthStr {
+			filtered = append(filtered, expense)
+		}
+	}
+
+	return filtered
+}
+
+func displaySummary(expenses []Expense, month int, year int) {
+	fmt.Println("Nothing to show yet")
 }
 
 func handleDeleteLast() {
