@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 type Expense struct {
@@ -12,6 +14,8 @@ type Expense struct {
 	Description string  `json:"description"`
 	Category    string  `json:"category"`
 }
+
+const dataFile = "expenses.json"
 
 func saveExpenses(expenses []Expense, filename string) error {
 	data, err := json.MarshalIndent(expenses, "", "  ")
@@ -42,54 +46,102 @@ func loadExpenses(filename string) ([]Expense, error) {
 	return expenses, nil
 }
 
-func filterByCategory(expenses []Expense, category string) []Expense {
-	filteredExpenses := []Expense{}
-	for _, expense := range expenses {
-		if expense.Category == category {
-			filteredExpenses = append(filteredExpenses, expense)
-		}
+func handleAdd() {
+	addCmd := flag.NewFlagSet("add", flag.ExitOnError)
+
+	date := addCmd.String("d", "", "Date of the expense (YYYY-MM-DD)")
+	desc := addCmd.String("desc", "", "Description of the expense")
+	category := addCmd.String("c", "general", "Category of the expense")
+
+	addCmd.Parse(os.Args[2:])
+
+	if addCmd.NArg() < 1 {
+		fmt.Println("Error: amount is required")
+		fmt.Println("Usage: poopy add <amount> [options]")
+		return
 	}
-	return filteredExpenses
-}
 
-func calculateAverage(expenses []Expense) float64 {
-	if len(expenses) == 0 {
-		return 0.0
+	var amount float64
+	_, err := fmt.Sscanf(addCmd.Arg(0), "%f", &amount)
+	if err != nil {
+		fmt.Println("Error: invalid amount")
+		return
 	}
 
-	total := 0.0
-	for _, expense := range expenses {
-		total += expense.Amount
+	expenseDate := *date
+	if expenseDate == "" {
+		expenseDate = time.Now().Format("02/01/2006")
 	}
-	return total / float64(len(expenses))
-}
 
-func main() {
-	filename := "expenses.json"
+	expense := Expense{
+		Date:        expenseDate,
+		Amount:      amount,
+		Description: *desc,
+		Category:    *category,
+	}
 
-	expenses, err := loadExpenses(filename)
+	expenses, err := loadExpenses(dataFile)
 	if err != nil {
 		fmt.Println("Error loading expenses:", err)
 		return
 	}
-	fmt.Printf("Loaded %d expenses\n", len(expenses))
 
-	newExpense := Expense{
-		Date:        "2026-01-01",
-		Amount:      100.00,
-		Description: "Groceries",
-		Category:    "food",
-	}
-	expenses = append(expenses, newExpense)
+	expenses = append(expenses, expense)
 
-	err = saveExpenses(expenses, filename)
+	err = saveExpenses(expenses, dataFile)
 	if err != nil {
 		fmt.Println("Error saving expenses:", err)
 		return
 	}
 
-	fmt.Printf("Saved %d expenses\n", len(expenses))
+	fmt.Printf("✓ Added expense: %.2f on %s\n", amount, expenseDate)
+	if *desc != "" {
+		fmt.Printf("	Description: %s\n", *desc)
+	}
+}
 
-	average := calculateAverage(filterByCategory(expenses, "food"))
-	fmt.Printf("Average food expense: $%.2f\n", average)
+func handleList() {
+	fmt.Println("Coming soon")
+}
+
+func handleSummary() {
+	fmt.Println("Coming soon")
+}
+
+func handleDeleteLast() {
+	fmt.Println("Coming soon")
+}
+
+func printUsage() {
+	fmt.Println("Poopy Expense Tracker")
+	fmt.Println()
+	fmt.Println("Usage: ")
+	fmt.Println("	poopy add <amount> [options]	Add an expense")
+	fmt.Println("	poopy list [options]			List expenses")
+	fmt.Println("	poopy summary [options]			Show summary")
+	fmt.Println()
+	fmt.Println("Run 'poopy <command> -help' for specific command options")
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		printUsage()
+		return
+	}
+
+	command := os.Args[1]
+
+	switch command {
+	case "add":
+		handleAdd()
+	case "list":
+		handleList()
+	case "summary":
+		handleSummary()
+	case "delete-last":
+		handleDeleteLast()
+	default:
+		fmt.Println("Invalid command")
+		return
+	}
 }
