@@ -101,6 +101,58 @@ func handleAdd() {
 }
 
 func handleList() {
+	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
+
+	startDate := listCmd.String("s", "", "Start date (DD/MM/YYYY)")
+	endDate := listCmd.String("e", "", "End date (DD/MM/YYYY")
+	category := listCmd.String("c", "", "Filter by category")
+
+	listCmd.Parse(os.Args[2:])
+
+	expenses, err := loadExpenses(dataFile)
+	if err != nil {
+		fmt.Println("Error loading expenses:", err)
+		return
+	}
+
+	if len(expenses) == 0 {
+		fmt.Println("No expenses to list")
+		return
+	}
+
+	if *startDate != "" {
+		expenses = filterByStartDate(expenses, *startDate)
+	}
+
+	if *endDate != "" {
+		expenses = filterByEndDate(expenses, *endDate)
+	}
+
+	if *category != "" {
+		expenses = filterByCategory(expenses, *category)
+	}
+
+	if len(expenses) == 0 {
+		fmt.Println("No expenses with the selected filters")
+		return
+	}
+
+	displayExpenses(expenses)
+}
+
+func filterByStartDate(expenses []Expense, date string) []Expense {
+	fmt.Println("Coming soon")
+}
+
+func filterByEndDate(expenses []Expense, date string) []Expense {
+	fmt.Println("Coming soon")
+}
+
+func filterByCategory(expenses []Expense, category string) []Expense {
+	fmt.Println("Coming soon")
+}
+
+func displayExpenses(expenses []Expense) {
 	fmt.Println("Coming soon")
 }
 
@@ -109,7 +161,27 @@ func handleSummary() {
 }
 
 func handleDeleteLast() {
-	fmt.Println("Coming soon")
+	expenses, err := loadExpenses(dataFile)
+	if err != nil {
+		fmt.Println("Error loading expenses:", err)
+		return
+	}
+
+	if len(expenses) == 0 {
+		fmt.Println("No expenses to delete")
+		return
+	}
+
+	deleted := expenses[len(expenses)-1]
+	expenses = expenses[:len(expenses)-1]
+
+	err = saveExpenses(expenses, dataFile)
+	if err != nil {
+		fmt.Println("Error saving expenses", err)
+		return
+	}
+
+	fmt.Printf("✓ Deleted expense: %.2f on %s", deleted.Amount, deleted.Date)
 }
 
 func printUsage() {
@@ -141,7 +213,8 @@ func main() {
 	case "delete-last":
 		handleDeleteLast()
 	default:
-		fmt.Println("Invalid command")
+		fmt.Printf("Unknown command: %s\n", command)
+		printUsage()
 		return
 	}
 }
