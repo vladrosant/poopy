@@ -264,7 +264,35 @@ func filterByMonth(expenses []Expense, year, month int) []Expense {
 }
 
 func displaySummary(expenses []Expense, month int, year int) {
-	fmt.Println("Nothing to show yet")
+	period := "All Time"
+	if year > 0 && month > 0 {
+		period = fmt.Sprintf("%d-%02d", year, month)
+	} else if year > 0 {
+		period = fmt.Sprintf("%d", year)
+	}
+
+	categoryTotals := make(map[string]float64)
+
+	for _, expense := range expenses {
+		categoryTotals[expense.Category] += expense.Amount
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 50))
+	fmt.Println("Expense Summary - %s\n", period)
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Printf("%-25s %15s\n", "Category", "Amount")
+	fmt.Println(strings.Repeat("-", 50))
+
+	total := 0.0
+
+	for category, amount := range categoryTotals {
+		fmt.Printf("%-25s $%14.2f\n", category, amount)
+		total += amount
+	}
+
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("%-25s $%14.2f\n", "TOTAL", total)
+	fmt.Println(strings.Repeat("=", 50) + "\n")
 }
 
 func handleDeleteLast() {
