@@ -278,7 +278,7 @@ func displaySummary(expenses []Expense, month int, year int) {
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 50))
-	fmt.Println("Expense Summary - %s\n", period)
+	fmt.Printf("Expense Summary - %s\n", period)
 	fmt.Println(strings.Repeat("=", 50))
 	fmt.Printf("%-25s %15s\n", "Category", "Amount")
 	fmt.Println(strings.Repeat("-", 50))
