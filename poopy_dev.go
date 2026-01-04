@@ -347,6 +347,8 @@ func main() {
 		handleSummary()
 	case "delete-last":
 		handleDeleteLast()
+	case "-v", "--version":
+		fmt.Println("Poopy 0.0.1")
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		printUsage()
