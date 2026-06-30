@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -16,19 +18,22 @@ type Expense struct {
 	Category    string  `json:"category"`
 }
 
-const dataFile = "expenses.json"
+func getDataFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "expenses.json"
+	}
+	dir := filepath.Join(home, ".poopy")
+	os.MkdirAll(dir, 0755)
+	return filepath.Join(dir, "expenses.json")
+}
 
 func saveExpenses(expenses []Expense, filename string) error {
 	data, err := json.MarshalIndent(expenses, "", "  ")
 	if err != nil {
 		return err
 	}
-
-	err = os.WriteFile(filename, data, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(filename, data, 0644)
 }
 
 func loadExpenses(filename string) ([]Expense, error) {
@@ -40,8 +45,7 @@ func loadExpenses(filename string) ([]Expense, error) {
 		return nil, err
 	}
 	var expenses []Expense
-	err = json.Unmarshal(data, &expenses)
-	if err != nil {
+	if err := json.Unmarshal(data, &expenses); err != nil {
 		return nil, err
 	}
 	return expenses, nil
@@ -49,23 +53,32 @@ func loadExpenses(filename string) ([]Expense, error) {
 
 func handleAdd() {
 	addCmd := flag.NewFlagSet("add", flag.ExitOnError)
+	date := addCmd.String("d", "", "date of the expense (yyyy-mm-dd)")
+	desc := addCmd.String("desc", "", "description of the expense")
+	category := addCmd.String("c", "general", "category of the expense")
 
-	date := addCmd.String("d", "", "Date of the expense (YYYY-MM-DD)")
-	desc := addCmd.String("desc", "", "Description of the expense")
-	category := addCmd.String("c", "general", "Category of the expense")
+	// separate the amount (first non-flag arg) from flag args so both orderings work:
+	// poopy add 25.50 -c food  AND  poopy add -c food 25.50
+	var amountStr string
+	var flagArgs []string
+	for _, arg := range os.Args[2:] {
+		if !strings.HasPrefix(arg, "-") && amountStr == "" {
+			amountStr = arg
+		} else {
+			flagArgs = append(flagArgs, arg)
+		}
+	}
+	addCmd.Parse(flagArgs)
 
-	addCmd.Parse(os.Args[2:])
-
-	if addCmd.NArg() < 1 {
-		fmt.Println("Error: amount is required")
-		fmt.Println("Usage: poopy add <amount> [options]")
+	if amountStr == "" {
+		fmt.Println("error: amount is required")
+		fmt.Println("usage: poopy add <amount> [options]")
 		return
 	}
 
 	var amount float64
-	_, err := fmt.Sscanf(addCmd.Arg(0), "%f", &amount)
-	if err != nil {
-		fmt.Println("Error: invalid amount")
+	if _, err := fmt.Sscanf(amountStr, "%f", &amount); err != nil {
+		fmt.Println("error: invalid amount")
 		return
 	}
 
@@ -74,67 +87,62 @@ func handleAdd() {
 		expenseDate = time.Now().Format("2006-01-02")
 	}
 
-	expense := Expense{
+	dataFile := getDataFile()
+	expenses, err := loadExpenses(dataFile)
+	if err != nil {
+		fmt.Println("error loading expenses:", err)
+		return
+	}
+
+	expenses = append(expenses, Expense{
 		Date:        expenseDate,
 		Amount:      amount,
 		Description: *desc,
 		Category:    *category,
-	}
+	})
 
-	expenses, err := loadExpenses(dataFile)
-	if err != nil {
-		fmt.Println("Error loading expenses:", err)
+	if err := saveExpenses(expenses, dataFile); err != nil {
+		fmt.Println("error saving expenses:", err)
 		return
 	}
 
-	expenses = append(expenses, expense)
-
-	err = saveExpenses(expenses, dataFile)
-	if err != nil {
-		fmt.Println("Error saving expenses:", err)
-		return
-	}
-
-	fmt.Printf("✓ Added expense: $%.2f on %s\n", amount, expenseDate)
+	fmt.Printf("added expense: $%.2f on %s\n", amount, expenseDate)
 	if *desc != "" {
-		fmt.Printf("	Description: %s\n", *desc)
+		fmt.Printf("  description: %s\n", *desc)
 	}
 }
 
 func handleList() {
 	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
-
-	startDate := listCmd.String("s", "", "Start date (YYYY-MM-DD)")
-	endDate := listCmd.String("e", "", "End date (YYYY-MM-DD")
-	category := listCmd.String("c", "", "Filter by category")
-
+	startDate := listCmd.String("s", "", "start date (yyyy-mm-dd)")
+	endDate := listCmd.String("e", "", "end date (yyyy-mm-dd)")
+	category := listCmd.String("c", "", "filter by category")
 	listCmd.Parse(os.Args[2:])
 
+	dataFile := getDataFile()
 	expenses, err := loadExpenses(dataFile)
 	if err != nil {
-		fmt.Println("Error loading expenses:", err)
+		fmt.Println("error loading expenses:", err)
 		return
 	}
 
 	if len(expenses) == 0 {
-		fmt.Println("No expenses to list")
+		fmt.Println("no expenses to list")
 		return
 	}
 
 	if *startDate != "" {
 		expenses = filterByStartDate(expenses, *startDate)
 	}
-
 	if *endDate != "" {
 		expenses = filterByEndDate(expenses, *endDate)
 	}
-
 	if *category != "" {
 		expenses = filterByCategory(expenses, *category)
 	}
 
 	if len(expenses) == 0 {
-		fmt.Println("No expenses with the selected filters")
+		fmt.Println("no expenses with the selected filters")
 		return
 	}
 
@@ -143,10 +151,9 @@ func handleList() {
 
 func filterByStartDate(expenses []Expense, startDate string) []Expense {
 	filtered := []Expense{}
-
-	for _, expense := range expenses {
-		if expense.Date >= startDate {
-			filtered = append(filtered, expense)
+	for _, e := range expenses {
+		if e.Date >= startDate {
+			filtered = append(filtered, e)
 		}
 	}
 	return filtered
@@ -154,10 +161,9 @@ func filterByStartDate(expenses []Expense, startDate string) []Expense {
 
 func filterByEndDate(expenses []Expense, endDate string) []Expense {
 	filtered := []Expense{}
-
-	for _, expense := range expenses {
-		if expense.Date <= endDate {
-			filtered = append(filtered, expense)
+	for _, e := range expenses {
+		if e.Date <= endDate {
+			filtered = append(filtered, e)
 		}
 	}
 	return filtered
@@ -165,74 +171,65 @@ func filterByEndDate(expenses []Expense, endDate string) []Expense {
 
 func filterByCategory(expenses []Expense, category string) []Expense {
 	filtered := []Expense{}
-
-	for _, expense := range expenses {
-		if expense.Category == category {
-			filtered = append(filtered, expense)
+	for _, e := range expenses {
+		if e.Category == category {
+			filtered = append(filtered, e)
 		}
 	}
-
 	return filtered
 }
 
 func displayExpenses(expenses []Expense) {
 	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Printf("%-12s  %-10s  %-15s  %s\n", "Date", "Amount", "Category", "Description")
+	fmt.Printf("%-12s  %-10s  %-15s  %s\n", "date", "amount", "category", "description")
 	fmt.Println(strings.Repeat("=", 80))
 
 	total := 0.0
-	for _, expense := range expenses {
-		desc := expense.Description
+	for _, e := range expenses {
+		desc := e.Description
 		if len(desc) > 40 {
 			desc = desc[:37] + "..."
 		}
 		if desc == "" {
 			desc = "-"
 		}
-
-		fmt.Printf("%-12s  $%-9.2f  %-15s  %s\n",
-			expense.Date,
-			expense.Amount,
-			expense.Category,
-			desc)
-
-		total += expense.Amount
+		fmt.Printf("%-12s  $%-9.2f  %-15s  %s\n", e.Date, e.Amount, e.Category, desc)
+		total += e.Amount
 	}
 
 	fmt.Println(strings.Repeat("=", 80))
-	fmt.Printf("%-13s $%-9.2f\n", "TOTAL", total)
+	fmt.Printf("%-13s $%-9.2f\n", "total", total)
 	fmt.Println(strings.Repeat("=", 80) + "\n")
 }
 
 func handleSummary() {
 	summaryCmd := flag.NewFlagSet("summary", flag.ExitOnError)
-
-	month := summaryCmd.Int("m", 0, "Month (1-12)")
-	year := summaryCmd.Int("y", 0, "Year (e.g., 2026)")
-
+	month := summaryCmd.Int("m", 0, "month (1-12)")
+	year := summaryCmd.Int("y", 0, "year (e.g., 2026)")
 	summaryCmd.Parse(os.Args[2:])
 
+	dataFile := getDataFile()
 	expenses, err := loadExpenses(dataFile)
 	if err != nil {
-		fmt.Println("Error loading expenses:", err)
+		fmt.Println("error loading expenses:", err)
 		return
 	}
 
-	if len(expenses) < 1 {
-		fmt.Println("No expenses to show")
+	if len(expenses) == 0 {
+		fmt.Println("no expenses to show")
 		return
 	}
 
 	if *year > 0 {
 		expenses = filterByYear(expenses, *year)
 	}
-
 	if *month > 0 {
 		expenses = filterByMonth(expenses, *year, *month)
 	}
 
 	if len(expenses) == 0 {
-		fmt.Println("No expenses to show")
+		fmt.Println("no expenses to show")
+		return
 	}
 
 	displaySummary(expenses, *month, *year)
@@ -241,10 +238,9 @@ func handleSummary() {
 func filterByYear(expenses []Expense, year int) []Expense {
 	filtered := []Expense{}
 	yearStr := fmt.Sprintf("%d", year)
-
-	for _, expense := range expenses {
-		if len(expense.Date) >= 4 && expense.Date[:4] == yearStr {
-			filtered = append(filtered, expense)
+	for _, e := range expenses {
+		if len(e.Date) >= 4 && e.Date[:4] == yearStr {
+			filtered = append(filtered, e)
 		}
 	}
 	return filtered
@@ -253,81 +249,91 @@ func filterByYear(expenses []Expense, year int) []Expense {
 func filterByMonth(expenses []Expense, year, month int) []Expense {
 	filtered := []Expense{}
 	monthStr := fmt.Sprintf("%d-%02d", year, month)
-
-	for _, expense := range expenses {
-		if len(expense.Date) >= 7 && expense.Date[:7] == monthStr {
-			filtered = append(filtered, expense)
+	for _, e := range expenses {
+		if len(e.Date) >= 7 && e.Date[:7] == monthStr {
+			filtered = append(filtered, e)
 		}
 	}
-
 	return filtered
 }
 
-func displaySummary(expenses []Expense, month int, year int) {
-	period := "All Time"
-	if year > 0 && month > 0 {
-		period = fmt.Sprintf("%d-%02d", year, month)
-	} else if year > 0 {
-		period = fmt.Sprintf("%d", year)
+func displaySummary(expenses []Expense, month, year int) {
+	categories := map[string]float64{}
+	total := 0.0
+	for _, e := range expenses {
+		categories[e.Category] += e.Amount
+		total += e.Amount
 	}
 
-	categoryTotals := make(map[string]float64)
+	type catAmount struct {
+		name   string
+		amount float64
+	}
+	cats := make([]catAmount, 0, len(categories))
+	for name, amount := range categories {
+		cats = append(cats, catAmount{name, amount})
+	}
+	sort.Slice(cats, func(i, j int) bool {
+		return cats[i].amount > cats[j].amount
+	})
 
-	for _, expense := range expenses {
-		categoryTotals[expense.Category] += expense.Amount
+	var period string
+	switch {
+	case month > 0 && year > 0:
+		period = fmt.Sprintf("%d-%02d", year, month)
+	case year > 0:
+		period = fmt.Sprintf("%d", year)
+	default:
+		period = "all time"
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 50))
-	fmt.Printf("Expense Summary - %s\n", period)
+	fmt.Printf("expense summary - %s\n", period)
 	fmt.Println(strings.Repeat("=", 50))
-	fmt.Printf("%-25s %15s\n", "Category", "Amount")
+	fmt.Printf("%-25s  %s\n", "category", "amount")
 	fmt.Println(strings.Repeat("-", 50))
-
-	total := 0.0
-
-	for category, amount := range categoryTotals {
-		fmt.Printf("%-25s $%14.2f\n", category, amount)
-		total += amount
+	for _, cat := range cats {
+		fmt.Printf("%-25s  $%.2f\n", cat.name, cat.amount)
 	}
-
 	fmt.Println(strings.Repeat("-", 50))
-	fmt.Printf("%-25s $%14.2f\n", "TOTAL", total)
+	fmt.Printf("%-25s  $%.2f\n", "total", total)
 	fmt.Println(strings.Repeat("=", 50) + "\n")
 }
 
 func handleDeleteLast() {
+	dataFile := getDataFile()
 	expenses, err := loadExpenses(dataFile)
 	if err != nil {
-		fmt.Println("Error loading expenses:", err)
+		fmt.Println("error loading expenses:", err)
 		return
 	}
 
 	if len(expenses) == 0 {
-		fmt.Println("No expenses to delete")
+		fmt.Println("no expenses to delete")
 		return
 	}
 
 	deleted := expenses[len(expenses)-1]
 	expenses = expenses[:len(expenses)-1]
 
-	err = saveExpenses(expenses, dataFile)
-	if err != nil {
-		fmt.Println("Error saving expenses", err)
+	if err := saveExpenses(expenses, dataFile); err != nil {
+		fmt.Println("error saving expenses:", err)
 		return
 	}
 
-	fmt.Printf("✓ Deleted expense: %.2f on %s", deleted.Amount, deleted.Date)
+	fmt.Printf("deleted expense: $%.2f on %s\n", deleted.Amount, deleted.Date)
 }
 
 func printUsage() {
-	fmt.Println("Poopy Expense Tracker")
+	fmt.Println("poopy - expense tracker")
 	fmt.Println()
-	fmt.Println("Usage: ")
-	fmt.Println("	poopy add <amount> [options]	Add an expense")
-	fmt.Println("	poopy list [options]			List expenses")
-	fmt.Println("	poopy summary [options]			Show summary")
+	fmt.Println("usage:")
+	fmt.Println("  poopy add <amount> [options]   add an expense")
+	fmt.Println("  poopy list [options]            list expenses")
+	fmt.Println("  poopy summary [options]         show summary")
+	fmt.Println("  poopy delete-last               delete last expense")
 	fmt.Println()
-	fmt.Println("Run 'poopy <command> -help' for specific command options")
+	fmt.Println("run 'poopy <command> -help' for command options")
 }
 
 func main() {
@@ -336,9 +342,7 @@ func main() {
 		return
 	}
 
-	command := os.Args[1]
-
-	switch command {
+	switch os.Args[1] {
 	case "add":
 		handleAdd()
 	case "list":
@@ -350,8 +354,7 @@ func main() {
 	case "-v", "--version":
 		fmt.Println("Poopy 0.0.1")
 	default:
-		fmt.Printf("Unknown command: %s\n", command)
+		fmt.Printf("unknown command: %s\n", os.Args[1])
 		printUsage()
-		return
 	}
 }
